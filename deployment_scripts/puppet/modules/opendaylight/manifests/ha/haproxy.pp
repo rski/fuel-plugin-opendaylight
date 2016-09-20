@@ -21,6 +21,8 @@ class opendaylight::ha::haproxy {
   $management_vip = hiera('management_vip')
   $api_port = $opendaylight::rest_api_port
   $jetty_port = $opendaylight::jetty_port
+  $karaf_ssh_port = '8101'
+  $quagga_port = '179'
 
   # defaults for any haproxy_service within this class
   Openstack::Ha::Haproxy_service {
@@ -57,4 +59,36 @@ class opendaylight::ha::haproxy {
     },
     balancermember_options => 'check inter 5000 rise 2 fall 3',
   }
+
+  openstack::ha::haproxy_service { 'odl-quagga':
+    order                  => '217',
+    public                 => false,
+    listen_port            => $quagga_port,
+    haproxy_config_options => {
+      'timeout client' => '3h',
+      'timeout server' => '3h',
+      'balance'        => 'source',
+      'mode'           => 'tcp',
+    },
+    balancermember_options => 'check inter 5000 rise 2 fall 3',
+  }
+
+  # FIXME this is not very secure,
+  # but it is required in order to be able to run `configure-bgp` commands,
+  # because there are no corresponding REST calls.
+  # See https://bugs.opendaylight.org/show_bug.cgi?id=6753
+  # Once the ODL bug is fixed, this should be removed and ideally karaf access
+  # should only be limited from inside the ODL host
+  openstack::ha::haproxy_service { 'odl-karaf-ssh':
+    order                  => '218',
+    listen_port            => $karaf_ssh_port,
+    haproxy_config_options => {
+      'timeout client' => '3h',
+      'timeout server' => '3h',
+      'balance'        => 'source',
+      'mode'           => 'tcp',
+    },
+  balancermember_options   => 'check inter 5000 rise 2 fall 3',
+  }
+
 }
